@@ -1,7 +1,8 @@
 import copy
 import torch
 import torch.nn as nn
-from .modules import MultiHeadAttention, PositionWiseFF, TwoStreamSelfAttention
+from .modules import MultiHeadAttention, PositionWiseFF, \
+    TwoStreamSelfAttention, ConvAttention
 from .utils import form_attention_mask
 
 
@@ -26,16 +27,21 @@ class TransformerEncoderBlock(nn.Module):
                  hidden_act="relu"):
         super().__init__()
 
-        self.first_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads,
-            attn_score_dropout, attn_layer_dropout)
-        self.second_sub_layer = PositionWiseFF(
-            hidden_size, inner_size, ffn_dropout, hidden_act)
+        # self.first_sub_layer = MultiHeadAttention(
+        #    hidden_size, num_attention_heads,
+        #    attn_score_dropout, attn_layer_dropout)
+        # self.second_sub_layer = PositionWiseFF(
+        #    hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.first_sub_layer = ConvAttention(
+            hidden_size, num_attention_heads, num_layers=6, num_channels=64,
+            kernel_size=5, attn_score_dropout=0.0, attn_layer_dropout=0.0)
 
     def forward(self, encoder_query, encoder_mask, encoder_keys):
-        self_attn_output = self.first_sub_layer(
+        # self_attn_output = self.first_sub_layer(
+        #    encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        # output_states = self.second_sub_layer(self_attn_output)
+        output_states = self.first_sub_layer(
             encoder_query, encoder_keys, encoder_keys, encoder_mask)
-        output_states = self.second_sub_layer(self_attn_output)
         return output_states
 
 
