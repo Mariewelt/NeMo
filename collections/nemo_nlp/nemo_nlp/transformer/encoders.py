@@ -43,10 +43,9 @@ class TransformerEncoder(nn.Module):
     def __init__(self, num_layers, hidden_size, mask_future=False, **kwargs):
         super().__init__()
 
-        layer = TransformerEncoderBlock(hidden_size, **kwargs)
-        self.layers = nn.ModuleList(
-            [copy.deepcopy(layer) for _ in range(num_layers)])
+        self.layer = TransformerEncoderBlock(hidden_size, **kwargs)
         self.diag = 0 if mask_future else None
+        self.num_layers = num_layers
 
     def _get_memory_states(self, encoder_states, encoder_mems_list=None, i=0):
         if encoder_mems_list is not None:
@@ -75,8 +74,8 @@ class TransformerEncoder(nn.Module):
             encoder_states, encoder_mems_list, 0)
         cached_mems_list = [memory_states]
 
-        for i, layer in enumerate(self.layers):
-            encoder_states = layer(
+        for i in range(self.num_layers):
+            encoder_states = self.layer(
                 encoder_states, encoder_attn_mask, memory_states)
             memory_states = self._get_memory_states(
                 encoder_states, encoder_mems_list, i + 1)

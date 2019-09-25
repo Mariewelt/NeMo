@@ -50,9 +50,8 @@ class TransformerDecoder(nn.Module):
     def __init__(self, num_layers, hidden_size, **kwargs):
         super().__init__()
 
-        layer = TransformerDecoderBlock(hidden_size, **kwargs)
-        self.layers = nn.ModuleList(
-            [copy.deepcopy(layer) for _ in range(num_layers)])
+        self.layer = TransformerDecoderBlock(hidden_size, **kwargs)
+        self.num_layers = num_layers
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
@@ -84,8 +83,8 @@ class TransformerDecoder(nn.Module):
             decoder_states, decoder_mems_list, 0)
         cached_mems_list = [memory_states]
 
-        for i, layer in enumerate(self.layers):
-            decoder_states = layer(
+        for i in range(self.num_layers):
+            decoder_states = self.layer(
                 decoder_states, decoder_attn_mask, memory_states,
                 encoder_states, encoder_attn_mask)
             memory_states = self._get_memory_states(decoder_states,
