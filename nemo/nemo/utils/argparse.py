@@ -53,7 +53,7 @@ class NemoArgParser(argparse.ArgumentParser):
         # Optimizer Choices
         self.add_argument("--optimizer", type=str,
                           choices=["sgd", "adam", "fused_adam", "adam_w",
-                                   "novograd", "lamb"],
+                                   "novograd", "lamb", "fused_novograd"],
                           help="optimizer")
         self.add_argument("--weight_decay", type=float, default=0.,
                           help="weight decay")

@@ -71,6 +71,7 @@ class TransformerEncoderNM(TrainableNM):
         params = self.local_parameters
         embedding_params = {
             "vocab_size": params["vocab_size"],
+            "embedding_size": params["d_embedding"],
             "hidden_size": params["d_model"],
             "max_sequence_length": params["max_seq_length"],
             "embedding_dropout": params.get("embedding_dropout", 0),
@@ -86,7 +87,8 @@ class TransformerEncoderNM(TrainableNM):
             "ffn_dropout": params.get("ffn_dropout", 0),
             "hidden_act": params.get("hidden_act", "relu"),
             "attn_score_dropout": params.get("attn_score_dropout", 0),
-            "attn_layer_dropout": params.get("attn_layer_dropout", 0)
+            "attn_layer_dropout": params.get("attn_layer_dropout", 0),
+            "share_all_layers": params.get("share_all_layers", False)
         }
 
         self.embedding_layer = TransformerEmbedding(**embedding_params)
@@ -146,6 +148,7 @@ class TransformerDecoderNM(TrainableNM):
         params = self.local_parameters
         embedding_params = {
             "vocab_size": params["vocab_size"],
+            "embedding_size": params["d_embedding"],
             "hidden_size": params["d_model"],
             "max_sequence_length": params["max_seq_length"],
             "embedding_dropout": params.get("embedding_dropout", 0),
@@ -160,7 +163,8 @@ class TransformerDecoderNM(TrainableNM):
             "ffn_dropout": params.get("ffn_dropout", 0),
             "hidden_act": params.get("hidden_act", "relu"),
             "attn_score_dropout": params.get("attn_score_dropout", 0),
-            "attn_layer_dropout": params.get("attn_layer_dropout", 0)
+            "attn_layer_dropout": params.get("attn_layer_dropout", 0),
+            "share_all_layers": params.get("share_all_layers", False)
         }
 
         self.embedding_layer = TransformerEmbedding(**embedding_params)
@@ -202,12 +206,13 @@ class TransformerLogSoftmaxNM(TrainableNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, *, vocab_size, d_model, **kwargs):
+    def __init__(self, *, vocab_size, d_model, d_embedding, **kwargs):
         TrainableNM.__init__(self, **kwargs)
 
         self.log_softmax = TransformerLogSoftmax(
             vocab_size=vocab_size,
-            hidden_size=d_model)
+            hidden_size=d_model,
+            embedding_size=d_embedding)
 
         self.log_softmax.apply(transformer_weights_init)
         self.log_softmax.to(self._device)

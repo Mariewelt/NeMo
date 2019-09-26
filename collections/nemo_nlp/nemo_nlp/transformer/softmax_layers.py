@@ -8,12 +8,15 @@ class TransformerLogSoftmax(nn.Module):
     distribution over *vocab_size* output tokens.
     """
 
-    def __init__(self, vocab_size, hidden_size):
+    def __init__(self, vocab_size, hidden_size, embedding_size):
         super().__init__()
-        self.dense = nn.Linear(hidden_size, vocab_size)
+        self.hidden2token = nn.Linear(embedding_size, hidden_size, bias=False)
+        self.dense = nn.Linear(embedding_size, vocab_size)
 
     def forward(self, hidden_states):
-        output_states = self.dense(hidden_states).float()
+        output_states = nn.functional.linear(
+            hidden_states, self.hidden2token.weight.t())
+        output_states = self.dense(output_states).float()
         log_probs = torch.log_softmax(
             output_states, dim=-1).to(hidden_states.dtype)
         return log_probs

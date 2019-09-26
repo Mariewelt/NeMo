@@ -19,7 +19,7 @@ parser.set_defaults(
     optimizer="novograd",
     # num_epochs=1000,
     # 5 is too small - only use for test
-    num_epochs=5,
+    num_epochs=1000,
     batch_size=4096,
     eval_batch_size=4096,
     lr=0.005,
@@ -34,6 +34,7 @@ parser.set_defaults(
 parser.add_argument("--data_root", default="../../tests/data/en_de/", type=str)
 parser.add_argument("--src_lang", default="en", type=str)
 parser.add_argument("--tgt_lang", default="de", type=str)
+parser.add_argument("--d_embedding", default=128, type=int)
 parser.add_argument("--d_model", default=512, type=int)
 parser.add_argument("--d_inner", default=2048, type=int)
 parser.add_argument("--num_layers", default=4, type=int)
@@ -47,6 +48,9 @@ parser.add_argument("--max_sequence_length", default=256, type=int)
 parser.add_argument("--label_smoothing", default=0.1, type=float)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--tokenizer_model", default="bpe8k_yttm.model", type=str)
+parser.add_argument("--tie_enc_dec", action="store_true")
+parser.add_argument("--tie_enc_softmax", action="store_true")
+parser.add_argument("--tie_projs", action="store_true")
 parser.add_argument("--interactive", action="store_true")
 args = parser.parse_args()
 
@@ -90,6 +94,7 @@ eval_data_layer = nemo_nlp.TranslationDataLayer(
     tokens_in_batch=args.eval_batch_size)
 encoder = nemo_nlp.TransformerEncoderNM(
     factory=neural_factory,
+    d_embedding=args.d_embedding,
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -102,6 +107,7 @@ encoder = nemo_nlp.TransformerEncoderNM(
     max_seq_length=args.max_sequence_length)
 decoder = nemo_nlp.TransformerDecoderNM(
     factory=neural_factory,
+    d_embedding=args.d_embedding,
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -115,7 +121,8 @@ decoder = nemo_nlp.TransformerDecoderNM(
 log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
     factory=neural_factory,
     vocab_size=vocab_size,
-    d_model=args.d_model)
+    d_model=args.d_model,
+    d_embedding=args.d_embedding)
 beam_search = nemo_nlp.BeamSearchTranslatorNM(
     factory=neural_factory,
     decoder=decoder,
@@ -131,10 +138,19 @@ loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
     label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
-log_softmax.log_softmax.dense.weight = \
-    encoder.embedding_layer.token_embedding.weight
-decoder.embedding_layer.token_embedding.weight = \
-    encoder.embedding_layer.token_embedding.weight
+if args.tie_enc_dec:
+    decoder.embedding_layer.token_embedding.weight = \
+        encoder.embedding_layer.token_embedding.weight
+    if args.tie_projs:
+        decoder.embedding_layer.token2hidden.weight = \
+            encoder.embedding_layer.token2hidden.weight
+
+if args.tie_enc_softmax:
+    log_softmax.log_softmax.dense.weight = \
+        encoder.embedding_layer.token_embedding.weight
+    if args.tie_projs:
+        log_softmax.log_softmax.hidden2token.weight = \
+            encoder.embedding_layer.token2hidden.weight
 
 # training pipeline
 src, src_mask, tgt, tgt_mask, labels, sent_ids = train_data_layer()

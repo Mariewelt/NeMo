@@ -70,14 +70,16 @@ class TransformerEmbedding(nn.Module):
         embedding_dropout: probability of dropout applied to embeddings
     """
 
-    def __init__(self, vocab_size, hidden_size, max_sequence_length=512,
-                 num_token_types=2, embedding_dropout=0.0,
-                 learn_positional_encodings=False):
+    def __init__(self, vocab_size, embedding_size, hidden_size,
+                 max_sequence_length=512, num_token_types=2,
+                 embedding_dropout=0.0, learn_positional_encodings=False):
         super().__init__()
 
         self.max_sequence_length = max_sequence_length
         self.token_embedding = nn.Embedding(
-            vocab_size, hidden_size, padding_idx=0)
+            vocab_size, embedding_size, padding_idx=0)
+        self.token2hidden = nn.Linear(
+            embedding_size, hidden_size, bias=False)
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(
                 max_sequence_length, hidden_size)
@@ -98,7 +100,7 @@ class TransformerEmbedding(nn.Module):
             dtype=torch.long, device=input_ids.device)
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
 
-        token_embeddings = self.token_embedding(input_ids)
+        token_embeddings = self.token2hidden(self.token_embedding(input_ids))
         position_embeddings = self.position_embedding(position_ids)
         embeddings = token_embeddings + position_embeddings
 
