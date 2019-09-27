@@ -81,7 +81,7 @@ class TransformerEncoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i in range(self.num_layers):
-            layer_id = i * self.share_all_layers
+            layer_id = i * (1 - self.share_all_layers)
             encoder_states = self.layers[layer_id](
                 encoder_states, encoder_attn_mask, memory_states)
             memory_states = self._get_memory_states(

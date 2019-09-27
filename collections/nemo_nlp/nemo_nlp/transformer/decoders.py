@@ -90,7 +90,7 @@ class TransformerDecoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i in range(self.num_layers):
-            layer_id = i * self.share_all_layers
+            layer_id = i * (1 - self.share_all_layers)
             decoder_states = self.layers[layer_id](
                 decoder_states, decoder_attn_mask, memory_states,
                 encoder_states, encoder_attn_mask)
