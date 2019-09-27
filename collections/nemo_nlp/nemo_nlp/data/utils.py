@@ -8,7 +8,8 @@ from nemo.utils.exp_logging import get_logger
 logger = get_logger('')
 
 
-def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
+def dataset_to_ids(dataset, tokenizer, cache_ids=False,
+                   add_bos=True, add_eos=True):
     """
     Reads dataset from file line by line, tokenizes each line with tokenizer,
     and returns list of lists which corresponds to ids of tokenized strings.
@@ -18,7 +19,8 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
         tokenizer: tokenizer to convert text into ids
         cache_ids: if True, ids are saved to disk as pickle file
             with similar name (e.g., data.txt --> data.txt.pkl)
-        add_bos_eos: bool, whether to add <s> and </s> symbols (e.g., for NMT)
+        add_bos: bool, whether to add beginning of string <s> symbol
+        add_eos: bool, whether to add end of string </s> symbol
     Returns:
         ids: list of ids which correspond to tokenized strings of the dataset
     """
@@ -33,9 +35,10 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
         ids = []
         for sentence in data:
             sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
-            if add_bos_eos:
-                sent_ids = [tokenizer.bos_id()] + sent_ids + \
-                           [tokenizer.eos_id()]
+            if add_bos:
+                sent_ids = [tokenizer.bos_id()] + sent_ids
+            if add_eos:
+                sent_ids = sent_ids + [tokenizer.eos_id()]
             ids.append(sent_ids)
         if cache_ids:
             logger.info("Caching tokenized dataset ...")

@@ -229,7 +229,7 @@ optimizer.train(
         "num_epochs": max_num_epochs,
         "lr": args.lr,
         "weight_decay": args.weight_decay,
-        "betas": (args.beta1, args.beta2)
+        "betas": (0.95, 0.25)
     },
     batches_per_step=args.iter_per_step
 )
