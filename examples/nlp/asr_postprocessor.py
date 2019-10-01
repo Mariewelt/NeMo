@@ -11,6 +11,9 @@ from nemo.utils.lr_policies import SquareAnnealing
 
 parser = nemo.utils.NemoArgParser(description='ASR postprocessor')
 parser.set_defaults(train_dataset="train",
+                    eval_datasets=["dev_clean", "dev_other",
+                                   "test_clean", "test_other"],
+                    work_dir="asr_correction",
                     optimizer="novograd",
                     num_epochs=1000,
                     batch_size=4096,
@@ -27,6 +30,7 @@ parser.add_argument("--pretrained_model",
                     type=str)
 parser.add_argument("--warmup_steps", default=4000, type=int)
 parser.add_argument("--d_model", default=768, type=int)
+parser.add_argument("--d_embedding", default=768, type=int)
 parser.add_argument("--d_inner", default=3072, type=int)
 parser.add_argument("--num_layers", default=12, type=int)
 parser.add_argument("--num_heads", default=12, type=int)
@@ -39,6 +43,7 @@ parser.add_argument("--dataset_dir", default="/dataset/", type=str)
 parser.add_argument("--src_lang", default="pred", type=str)
 parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
+parser.add_argument("--share_decoder_layers", action="store_true")
 parser.add_argument("--len_pen", default=0.0, type=float)
 parser.add_argument("--restore_from",
                     dest="restore_from",
@@ -54,16 +59,9 @@ neural_factory = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=nemo.core.Optimization.mxprO1,
     log_dir=args.work_dir,
-    create_tb_writer=True,
+    create_tb_writer=False,
     tensorboard_dir=tb_name,
 )
-
-# define the parameters for the first sub layer in Transformer block
-dec_first_sublayer_params = {
-    "first_sub_layer": "self_attention",
-    "attn_score_dropout": args.attn_score_dropout,
-    "attn_layer_dropout": args.attn_layer_dropout,
-}
 
 tokenizer = NemoBertTokenizer(pretrained_model=args.pretrained_model)
 
@@ -82,9 +80,8 @@ train_data_layer = nemo_nlp.TranslationDataLayer(
     clean=True)
 
 eval_data_layers = {}
-dataset_keys = ["dev_clean", "dev_other", "test_clean", "test_other"]
 
-for key in dataset_keys:
+for key in args.eval_datasets:
     eval_data_layers[key] = nemo_nlp.TranslationDataLayer(
         factory=neural_factory,
         tokenizer_src=tokenizer,
@@ -111,23 +108,28 @@ encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
 
 decoder = nemo_nlp.TransformerDecoderNM(
     factory=neural_factory,
+    d_embedding=args.d_embedding,
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
     num_attn_heads=args.num_heads,
     ffn_dropout=args.ffn_dropout,
     vocab_size=vocab_size,
+    attn_score_dropout=args.attn_score_dropout,
+    attn_layer_dropout=args.attn_layer_dropout,
     max_seq_length=max_sequence_length,
     embedding_dropout=args.embedding_dropout,
+    share_all_layers=args.share_decoder_layers,
     learn_positional_encodings=True,
-    hidden_act="gelu",
-    **dec_first_sublayer_params)
+    hidden_act="gelu")
 
-decoder.restore_from(args.restore_from, local_rank=args.local_rank)
+#decoder.restore_from(args.restore_from, local_rank=args.local_rank)
 
-t_log_softmax = nemo_nlp.TransformerLogSoftmaxNM(factory=neural_factory,
-                                                 vocab_size=vocab_size,
-                                                 d_model=args.d_model)
+t_log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
+    factory=neural_factory,
+    vocab_size=vocab_size,
+    d_model=args.d_model,
+    d_embedding=args.d_embedding)
 
 beam_translator = nemo_nlp.BeamSearchTranslatorNM(
     factory=neural_factory,
@@ -185,7 +187,7 @@ log_softmax_ = {}
 eval_loss_ = {}
 beam_trans_ = {}
 
-for key in dataset_keys:
+for key in args.eval_datasets:
 
     src_[key], src_mask_[key], tgt_[key], tgt_mask_[key], \
         labels_[key], sent_ids_[key] = eval_data_layers[key]()
@@ -224,7 +226,7 @@ callback_train = nemo.core.SimpleLossLoggerCallback(
 
 callbacks = [callback_train]
 
-for key in dataset_keys:
+for key in args.eval_datasets:
 
     callback = nemo.core.EvaluatorCallback(
         eval_tensors=[

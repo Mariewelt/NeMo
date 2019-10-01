@@ -14,7 +14,7 @@ logging.getLogger('').addHandler(console)
 
 parser = nemo.utils.NemoArgParser(description='Transformer for WT-103 LM')
 parser.set_defaults(
-    train_dataset="train.txt",
+    train_dataset="valid.txt",
     eval_datasets=["valid.txt"],
     checkpoint_dir="transformer_lm",
     optimizer="novograd",
@@ -36,10 +36,10 @@ parser.add_argument("--d_model", default=512, type=int)
 parser.add_argument("--d_inner", default=2048, type=int)
 parser.add_argument("--num_layers", default=6, type=int)
 parser.add_argument("--num_attn_heads", default=8, type=int)
-parser.add_argument("--embedding_dropout", default=0.3, type=float)
-parser.add_argument("--ffn_dropout", default=0.3, type=float)
-parser.add_argument("--attn_score_dropout", default=0.3, type=float)
-parser.add_argument("--attn_layer_dropout", default=0.3, type=float)
+parser.add_argument("--embedding_dropout", default=0.0, type=float)
+parser.add_argument("--ffn_dropout", default=0.0, type=float)
+parser.add_argument("--attn_score_dropout", default=0.0, type=float)
+parser.add_argument("--attn_layer_dropout", default=0.0, type=float)
 parser.add_argument("--warmup_steps", default=1000, type=int)
 parser.add_argument("--max_sequence_length", default=128, type=int)
 parser.add_argument("--label_smoothing", default=0.0, type=float)
@@ -95,7 +95,7 @@ encoder = nemo_nlp.TransformerEncoderNM(
     d_model=args.d_model,
     d_embedding=args.d_embedding,
     d_inner=args.d_inner,
-    num_layers=1,
+    num_layers=args.num_layers,
     embedding_dropout=args.embedding_dropout,
     num_attn_heads=args.num_attn_heads,
     ffn_dropout=args.ffn_dropout,
@@ -113,6 +113,11 @@ loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
     factory=neural_factory,
     pad_id=tokenizer.pad_id(),
     label_smoothing=args.label_smoothing)
+loss_eval = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
+    factory=neural_factory,
+    pad_id=tokenizer.pad_id(),
+    label_smoothing=args.label_smoothing,
+    predict_last_k=args.predict_last_k)
 
 if args.tie_enc_softmax:
     log_softmax.log_softmax.dense.weight = \
@@ -131,7 +136,7 @@ train_loss = loss(log_probs=log_probs, target_ids=labels)
 src_, src_mask_, labels_ = eval_data_layer()
 src_hiddens_ = encoder(input_ids=src_, input_mask_src=src_mask_)
 log_probs_ = log_softmax(hidden_states=src_hiddens_)
-eval_loss = loss(log_probs=log_probs_, target_ids=labels_)
+eval_loss = loss_eval(log_probs=log_probs_, target_ids=labels_)
 
 
 def print_loss(x):
