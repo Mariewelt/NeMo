@@ -74,8 +74,8 @@ train_data_layer = nemo_nlp.TranslationDataLayer(
     factory=neural_factory,
     tokenizer_src=tokenizer,
     tokenizer_tgt=tokenizer,
-    dataset_src=args.dataset_dir + args.train_dataset + "." + args.src_lang,
-    dataset_tgt=args.dataset_dir + args.train_dataset + "." + args.tgt_lang,
+    dataset_src=args.dataset_dir + "dev_other." + args.src_lang,
+    dataset_tgt=args.dataset_dir + "dev_other." + args.tgt_lang,
     tokens_in_batch=args.batch_size,
     clean=True)
 
