@@ -78,14 +78,14 @@ class TransformerEmbedding(nn.Module):
         self.max_sequence_length = max_sequence_length
         self.token_embedding = nn.Embedding(
             vocab_size, embedding_size, padding_idx=0)
-        self.token2hidden = nn.Linear(
-            embedding_size, hidden_size, bias=False)
 
         if embedding_size == hidden_size:
-            self.encode_tokens = self.token_embedding
+            self.encode_ids_fn = lambda x: self.token_embedding(x)
         else:
-            self.encode_tokens = nn.Sequential(
-                self.token_embedding, self.token2hidden)
+            self.token2hidden = nn.Linear(
+                embedding_size, hidden_size, bias=False)
+            self.encode_ids_fn = \
+                lambda x: self.token2hidden(self.token_embedding(x))
 
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(
@@ -108,7 +108,7 @@ class TransformerEmbedding(nn.Module):
             dtype=torch.long, device=input_ids.device)
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
 
-        token_embeddings = self.encode_tokens(input_ids)
+        token_embeddings = self.encode_ids_fn(input_ids)
         position_embeddings = self.position_embedding(position_ids)
         embeddings = token_embeddings + position_embeddings
 
