@@ -46,15 +46,25 @@ parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--share_decoder_layers", action="store_true")
 parser.add_argument("--restore_decoder", action="store_true")
 parser.add_argument("--len_pen", default=0.0, type=float)
+parser.add_argument("--fp16", default=1, type=int)
 args = parser.parse_args()
 
 # Start Tensorboard X for logging
 tb_name = "asr_postprocessor-lr{0}-opt{1}-warmup{2}-{3}-bs{4}".format(
     args.lr, args.optimizer, args.warmup_steps, "poly", args.batch_size)
 
+if args.fp16 == 3:
+    opt_level = nemo.core.Optimization.mxprO3
+elif args.fp16 == 2:
+    opt_level = nemo.core.Optimization.mxprO2
+elif args.fp16 == 1:
+    opt_level = nemo.core.Optimization.mxprO1
+else:
+    opt_level = nemo.core.Optimization.mxprO0
+
 neural_factory = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
-    optimization_level=nemo.core.Optimization.mxprO1,
+    optimization_level=opt_level,
     log_dir=args.work_dir,
     create_tb_writer=False,
     tensorboard_dir=tb_name,
