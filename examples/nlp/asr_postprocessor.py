@@ -44,11 +44,8 @@ parser.add_argument("--src_lang", default="pred", type=str)
 parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--share_decoder_layers", action="store_true")
+parser.add_argument("--restore_decoder", action="store_true")
 parser.add_argument("--len_pen", default=0.0, type=float)
-parser.add_argument("--restore_from",
-                    dest="restore_from",
-                    type=str,
-                    default="../../scripts/bert-base-uncased_decoder.pt")
 args = parser.parse_args()
 
 # Start Tensorboard X for logging
@@ -122,8 +119,10 @@ decoder = nemo_nlp.TransformerDecoderNM(
     share_all_layers=args.share_decoder_layers,
     learn_positional_encodings=True,
     hidden_act="gelu")
-
-#decoder.restore_from(args.restore_from, local_rank=args.local_rank)
+if args.restore_decoder:
+    decoder.restore_from(
+        "../../scripts/bert-base-uncased_decoder.pt",
+        local_rank=args.local_rank)
 
 t_log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
     factory=neural_factory,
