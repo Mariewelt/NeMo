@@ -45,6 +45,7 @@ parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--share_decoder_layers", action="store_true")
 parser.add_argument("--restore_decoder", action="store_true")
+parser.add_argument("--random_init_encoder", action="store_true")
 parser.add_argument("--len_pen", default=0.0, type=float)
 parser.add_argument("--fp16", default=1, type=int)
 args = parser.parse_args()
@@ -105,6 +106,7 @@ zeros_transform = nemo_nlp.ZerosLikeNM(factory=neural_factory)
 encoder = nemo_nlp.huggingface.BERT(
     factory=neural_factory,
     pretrained_model_name=args.pretrained_model,
+    random_init=args.random_init_encoder,
     local_rank=args.local_rank)
 
 device = encoder.bert.embeddings.word_embeddings.weight.get_device()

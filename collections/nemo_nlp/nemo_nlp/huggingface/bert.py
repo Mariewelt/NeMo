@@ -7,6 +7,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, \
         NeuralType, TimeTag
 from nemo.core.neural_modules import PretrainedModelInfo
+from nemo_nlp.transformer.utils import transformer_weights_init
 
 
 class BERT(TrainableNM):
@@ -66,6 +67,7 @@ class BERT(TrainableNM):
                  intermediate_size=3072,
                  hidden_act="gelu",
                  max_position_embeddings=512,
+                 random_init=False,
                  **kwargs):
         TrainableNM.__init__(self, **kwargs)
 
@@ -108,6 +110,10 @@ class BERT(TrainableNM):
 
         self.add_module("bert", model)
         self.config = model.config
+
+        if random_init:
+            self.apply(
+                lambda module: transformer_weights_init(module, xavier=False))
 
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
