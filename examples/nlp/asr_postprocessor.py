@@ -47,6 +47,15 @@ parser.add_argument("--share_decoder_layers", action="store_true")
 parser.add_argument("--restore_decoder", action="store_true")
 parser.add_argument("--random_init_encoder", action="store_true")
 parser.add_argument("--len_pen", default=0.0, type=float)
+parser.add_argument("--encoder", default="hf", type=str)
+parser.add_argument("--encoder_restore_from",
+                    dest="encoder_restore_from",
+                    type=str,
+                    default="../../scripts/bert-large-uncased_encoder.pt")
+parser.add_argument("--decoder_restore_from",
+                    dest="decoder_restore_from",
+                    type=str,
+                    default="../../scripts/bert-large-uncased_decoder.pt")
 parser.add_argument("--fp16", default=1, type=int)
 args = parser.parse_args()
 
@@ -67,8 +76,8 @@ neural_factory = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=opt_level,
     log_dir=args.work_dir,
-    create_tb_writer=False,
-    tensorboard_dir=tb_name,
+    create_tb_writer=False,#True,
+    tensorboard_dir=None#tb_name,
 )
 
 tokenizer = NemoBertTokenizer(pretrained_model=args.pretrained_model)
@@ -103,38 +112,80 @@ do_lower_case = True
 
 zeros_transform = nemo_nlp.ZerosLikeNM(factory=neural_factory)
 
-encoder = nemo_nlp.huggingface.BERT(
-    factory=neural_factory,
-    pretrained_model_name=args.pretrained_model,
-    random_init=args.random_init_encoder,
-    local_rank=args.local_rank)
+if args.encoder == "hf":
 
-device = encoder.bert.embeddings.word_embeddings.weight.get_device()
-zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
-
-encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-    (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
-
-decoder = nemo_nlp.TransformerDecoderNM(
-    factory=neural_factory,
-    d_embedding=args.d_embedding,
-    d_model=args.d_model,
-    d_inner=args.d_inner,
-    num_layers=args.num_layers,
-    num_attn_heads=args.num_heads,
-    ffn_dropout=args.ffn_dropout,
-    vocab_size=vocab_size,
-    attn_score_dropout=args.attn_score_dropout,
-    attn_layer_dropout=args.attn_layer_dropout,
-    max_seq_length=max_sequence_length,
-    embedding_dropout=args.embedding_dropout,
-    share_all_layers=args.share_decoder_layers,
-    learn_positional_encodings=True,
-    hidden_act="gelu")
-if args.restore_decoder:
-    decoder.restore_from(
-        "../../scripts/bert-base-uncased_decoder.pt",
+    encoder = nemo_nlp.huggingface.BERT(
+        factory=neural_factory,
+        random_init=args.random_init_encoder,
+        pretrained_model_name=args.pretrained_model,
         local_rank=args.local_rank)
+
+    device = encoder.bert.embeddings.word_embeddings.weight.get_device()
+    zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
+
+    encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
+        (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
+
+    decoder = nemo_nlp.TransformerDecoderNM(
+        factory=neural_factory,
+        d_embedding=args.d_embedding,
+        d_model=args.d_model,
+        d_inner=args.d_inner,
+        num_layers=args.num_layers,
+        num_attn_heads=args.num_heads,
+        ffn_dropout=args.ffn_dropout,
+        vocab_size=vocab_size,
+        attn_score_dropout=args.attn_score_dropout,
+        attn_layer_dropout=args.attn_layer_dropout,
+        max_seq_length=max_sequence_length,
+        embedding_dropout=args.embedding_dropout,
+        share_all_layers=args.share_decoder_layers,
+        learn_positional_encodings=True,
+        hidden_act="gelu")
+
+    if args.restore_decoder:
+        decoder.restore_from(args.decoder_restore_from,
+                             local_rank=args.local_rank)
+
+elif args.encoder == "nemo":
+    encoder = nemo_nlp.TransformerEncoderNM(
+        factory=neural_factory,
+        d_embedding=args.d_embedding,
+        d_model=args.d_model,
+        d_inner=args.d_inner,
+        num_layers=args.num_layers,
+        num_attn_heads=args.num_heads,
+        ffn_dropout=args.ffn_dropout,
+        vocab_size=vocab_size,
+        attn_score_dropout=args.attn_score_dropout,
+        attn_layer_dropout=args.attn_layer_dropout,
+        max_seq_length=max_sequence_length,
+        embedding_dropout=args.embedding_dropout,
+        share_all_layers=args.share_decoder_layers,
+        learn_positional_encodings=True,
+        hidden_act="gelu")
+
+    encoder.restore_from(args.encoder_restore_from, local_rank=args.local_rank)
+
+    decoder = nemo_nlp.TransformerDecoderNM(
+        factory=neural_factory,
+        d_embedding=args.d_embedding,
+        d_model=args.d_model,
+        d_inner=args.d_inner,
+        num_layers=args.num_layers,
+        num_attn_heads=args.num_heads,
+        ffn_dropout=args.ffn_dropout,
+        vocab_size=vocab_size,
+        attn_score_dropout=args.attn_score_dropout,
+        attn_layer_dropout=args.attn_layer_dropout,
+        max_seq_length=max_sequence_length,
+        embedding_dropout=args.embedding_dropout,
+        share_all_layers=args.share_decoder_layers,
+        learn_positional_encodings=True,
+        hidden_act="gelu")
+
+    decoder.restore_from(args.decoder_restore_from,
+                         local_rank=args.local_rank)
 
 t_log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
     factory=neural_factory,
@@ -161,21 +212,36 @@ loss_eval = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(factory=neural_factory,
                                                       pad_id=0,
                                                       smoothing=0.0)
 
-# tie all embeddings weights
-t_log_softmax.log_softmax.dense.weight = \
-    encoder.bert.embeddings.word_embeddings.weight
-decoder.embedding_layer.token_embedding.weight = \
-    encoder.bert.embeddings.word_embeddings.weight
-decoder.embedding_layer.position_embedding.weight = \
-    encoder.bert.embeddings.position_embeddings.weight
+if args.encoder == "hf":
+    # tie all embeddings weights
+    t_log_softmax.log_softmax.dense.weight = \
+        encoder.bert.embeddings.word_embeddings.weight
+    decoder.embedding_layer.token_embedding.weight = \
+        encoder.bert.embeddings.word_embeddings.weight
+    decoder.embedding_layer.position_embedding.weight = \
+        encoder.bert.embeddings.position_embeddings.weight
+
+elif args.encoder == "nemo":
+    t_log_softmax.log_softmax.dense.weight = \
+        encoder.embedding_layer.token_embedding.weight
+    decoder.embedding_layer.token_embedding.weight = \
+        encoder.embedding_layer.token_embedding.weight
+    decoder.embedding_layer.position_embedding.weight = \
+        encoder.embedding_layer.position_embedding.weight
 
 # training pipeline
 src, src_mask, tgt, tgt_mask, labels, sent_ids = train_data_layer()
 
 input_type_ids = zeros_transform(input_type_ids=src)
-src_hiddens = encoder(input_ids=src,
-                      token_type_ids=input_type_ids,
-                      attention_mask=src_mask)
+
+if args.encoder == "hf":
+    src_hiddens = encoder(input_ids=src,
+                          token_type_ids=input_type_ids,
+                          attention_mask=src_mask)
+elif args.encoder == "nemo":
+    src_hiddens = encoder(input_ids=src,
+                          input_mask_src=src_mask)
+
 tgt_hiddens = decoder(input_ids_tgt=tgt,
                       hidden_states_src=src_hiddens,
                       input_mask_src=src_mask,
@@ -203,11 +269,17 @@ for key in args.eval_datasets:
     src_[key], src_mask_[key], tgt_[key], tgt_mask_[key], \
         labels_[key], sent_ids_[key] = eval_data_layers[key]()
 
-    input_type_ids_[key] = zeros_transform(input_type_ids=src_[key])
+    if args.encoder == "hf":
 
-    src_hiddens_[key] = encoder(input_ids=src_[key],
-                                token_type_ids=input_type_ids_[key],
-                                attention_mask=src_mask_[key])
+        input_type_ids_[key] = zeros_transform(input_type_ids=src_[key])
+
+        src_hiddens_[key] = encoder(input_ids=src_[key],
+                                    token_type_ids=input_type_ids_[key],
+                                    attention_mask=src_mask_[key])
+
+    elif args.encoder == "nemo":
+        src_hiddens_[key] = encoder(input_ids=src_[key],
+                                    input_mask_src=src_mask_[key])
 
     tgt_hiddens_[key] = decoder(input_ids_tgt=tgt_[key],
                                 hidden_states_src=src_hiddens_[key],
